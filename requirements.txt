@@ -1,0 +1,15 @@
+tensorflow
+librecommender
+scikit-learn
+xgboost
+h2o
+flaml
+auto-sklearn
+smac
+configspace
+surprise
+lenskit
+myfm
+pandas
+scipy
+numpy==1.22.2
