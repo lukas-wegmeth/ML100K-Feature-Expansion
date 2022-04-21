@@ -1,6 +1,10 @@
 import pandas as pd
 
-from metrics import calc_rmse, calc_mae
+from sklearn.metrics import mean_squared_error
+
+
+def calc_rmse(y_true, y_pred):
+    return mean_squared_error(y_true, y_pred, squared=False)
 
 
 def fps_ml(train_data, test_data, regressor, *args):
@@ -237,7 +241,7 @@ def bayesian_fm(train_data, test_data, split_info):
 
 
 def prepare_data_libreco(train_data, test_data, split_info, transform_type):
-    from libreco.data import DatasetFeat, DatasetPure
+    from LibRecommender.libreco.data import DatasetFeat, DatasetPure
 
     def rename_and_order(data_in):
         data_in = data_in.rename(columns={"userId": "user", "movieId": "item", "rating": "label"})
@@ -288,47 +292,56 @@ def prepare_data_libreco(train_data, test_data, split_info, transform_type):
     return train_data, data_info, test_data, val_data, y_test
 
 
-def fps_libreco(train_data, test_data, val_data, y_test, regressor):
-    from libreco.evaluation import computation
+def fps_libreco(train_data, test_data, val_data, y_test, data_info, regressor):
+    from LibRecommender.libreco.evaluation import computation
     import numpy as np
     import tensorflow as tf2
     tf = tf2.compat.v1
     tf.disable_v2_behavior()
 
-    regressor.fit(train_data, verbose=2, shuffle=True, eval_data=val_data, metrics=["rmse"])
+    train_loss, eval_rmse = regressor.fit(train_data, verbose=2, shuffle=True, eval_data=val_data, metrics=["rmse"])
     tf.reset_default_graph()
 
-    pred, _ = computation.compute_preds(model=regressor, data=test_data, batch_size=8192)
+    pd.DataFrame(train_loss).to_csv("variables/train_loss.csv", header=False, index=False)
+    pd.DataFrame(eval_rmse).to_csv("variables/eval_rmse.csv", header=False, index=False)
+
+    epoch = regressor.early_stopping("variables/train_loss.csv", "variables/eval_rmse.csv", window=None,
+                                     doc_train=0, doc_eval=0)
+    regressor_best = regressor.load_variables('variables', f'model-epoch-{epoch}', data_info)
+
+    pred, _ = computation.compute_preds(model=regressor_best, data=test_data, batch_size=8192)
     pred = np.array(pred)
+
+    tf.reset_default_graph()
 
     return calc_rmse(y_test, pred)
 
 
 def svdpp_libreco(train_data, test_data, split_info):
-    from libreco.algorithms import SVDpp
+    from LibRecommender.libreco.algorithms import SVDpp
     train_data, data_info, test_data, val_data, y_test = prepare_data_libreco(train_data, test_data, None, "PURE")
-    return fps_libreco(train_data, test_data, val_data, y_test,
+    return fps_libreco(train_data, test_data, val_data, y_test, data_info,
                        SVDpp(task="rating", data_info=data_info, embed_size=10, n_epochs=20, lr=.001, reg=.0001,
                              batch_size=256))
 
 
 def wide_deep(train_data, test_data, split_info):
-    from libreco.algorithms import WideDeep
+    from LibRecommender.libreco.algorithms import WideDeep
     train_data, data_info, test_data, val_data, y_test = prepare_data_libreco(train_data, test_data, split_info, "FEAT")
-    return fps_libreco(train_data, test_data, val_data, y_test,
-                       WideDeep(task="rating", data_info=data_info, embed_size=16, n_epochs=67,
-                                lr={"wide": 0.027397130608558657, "deep": 0.00042743248939514165},
-                                lr_decay=False, reg=0.005392177332639694, batch_size=64, num_neg=1, use_bn=True,
+    return fps_libreco(train_data, test_data, val_data, y_test, data_info,
+                       WideDeep(task="rating", data_info=data_info, embed_size=64, n_epochs=100,
+                                lr={"wide": 0.018467338582854813, "deep": 0.00018065379879874467},
+                                lr_decay=False, reg=0.00899680117739739, batch_size=512, num_neg=1, use_bn=True,
                                 dropout_rate=0.5, hidden_units="256,128,64", batch_sampling=False,
                                 multi_sparse_combiner="sqrtn", seed=42, lower_upper_bound=[1, 5], tf_sess_config=None))
 
 
 def deep_interest_network(train_data, test_data, split_info):
-    from libreco.algorithms import DIN
+    from LibRecommender.libreco.algorithms import DIN
     train_data, data_info, test_data, val_data, y_test = prepare_data_libreco(train_data, test_data, split_info, "FEAT")
-    return fps_libreco(train_data, test_data, val_data, y_test,
-                       DIN(task="rating", data_info=data_info, embed_size=32, n_epochs=54, lr=0.0009777537258716606,
-                           lr_decay=False, reg=0.007586652950907987, batch_size=64, num_neg=1, use_bn=True,
+    return fps_libreco(train_data, test_data, val_data, y_test, data_info,
+                       DIN(task="rating", data_info=data_info, embed_size=48, n_epochs=100, lr=0.0028155613535703365,
+                           lr_decay=False, reg=0.0012634625195893107, batch_size=192, num_neg=1, use_bn=True,
                            dropout_rate=0.5, hidden_units="256,128,64", recent_num=10, random_num=None,
                            use_tf_attention=False, multi_sparse_combiner="sqrtn", seed=42, lower_upper_bound=[1, 5],
                            tf_sess_config=None))

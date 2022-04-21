@@ -150,3 +150,10 @@ crashlytics.properties
 crashlytics-build.properties
 fabric.properties
 
+# project specific
+/ml-100k/*.data
+/ml-100k/*.item
+/ml-100k/*.user
+/ml-100k/*.xlsx
+/ml-100k-processed/*.csv
+/ml-100k-processed/*.json

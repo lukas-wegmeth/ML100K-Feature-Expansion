@@ -33,6 +33,7 @@ from ..feature import (
     features_from_dict,
     add_item_features
 )
+
 tf = tf2.compat.v1
 tf.disable_v2_behavior()
 
@@ -120,6 +121,7 @@ class DIN(Base, TfMixin, EvalMixin):
         self.user_last_interacted = None
         self.last_interacted_len = None
         self.all_args = locals()
+        self.save_params("variables/")
 
     def _build_model(self):
         self.graph_built = True
@@ -149,7 +151,7 @@ class DIN(Base, TfMixin, EvalMixin):
         self.user_indices = tf.placeholder(tf.int32, shape=[None])
         self.item_indices = tf.placeholder(tf.int32, shape=[None])
         self.user_interacted_seq = tf.placeholder(
-            tf.int32, shape=[None, self.max_seq_len])   # B * seq
+            tf.int32, shape=[None, self.max_seq_len])  # B * seq
         self.user_interacted_len = tf.placeholder(tf.float32, shape=[None])
         self.labels = tf.placeholder(tf.float32, shape=[None])
         self.is_training = tf.placeholder_with_default(False, shape=[])
@@ -335,7 +337,7 @@ class DIN(Base, TfMixin, EvalMixin):
             attention_weights = tf.layers.flatten(mlp_layer)
 
             key_masks = tf.sequence_mask(keys_len, self.max_seq_len)
-            paddings = tf.ones_like(attention_weights) * (-2**32 + 1)
+            paddings = tf.ones_like(attention_weights) * (-2 ** 32 + 1)
             attention_scores = tf.where(key_masks, attention_weights, paddings)
             attention_scores = tf.div_no_nan(
                 attention_scores,
@@ -391,6 +393,8 @@ class DIN(Base, TfMixin, EvalMixin):
                                          mode=self.interaction_mode,
                                          num=self.max_seq_len,
                                          padding_idx=0)
+        train_loss_t = []
+        eval_loss_t = []
         for epoch in range(1, self.n_epochs + 1):
             if self.lr_decay:
                 print(f"With lr_decay, epoch {epoch} learning rate: "
@@ -406,21 +410,26 @@ class DIN(Base, TfMixin, EvalMixin):
                     train_loss, _ = self.sess.run(
                         [self.loss, self.training_op], feed_dict)
                     train_total_loss.append(train_loss)
+                self.save_variables('variables', 'model' + '-epoch-' + str(epoch), inference_only=False)
 
             if verbose > 1:
                 train_loss_str = "train_loss: " + str(
                     round(float(np.mean(train_total_loss)), 4)
                 )
+                train_loss_t.append(round(float(np.mean(train_total_loss)), 4))
                 print(f"\t {colorize(train_loss_str, 'green')}")
                 # for evaluation
                 self._set_last_interacted()
-                self.print_metrics(eval_data=eval_data, metrics=metrics,
-                                   **kwargs)
+                eval_loss_temp = self.print_metrics(eval_data=eval_data, metrics=metrics,
+                                                    **kwargs)
+                eval_loss_t.append(eval_loss_temp)
                 print("=" * 30)
 
         # for prediction and recommendation
         self._set_last_interacted()
         self.assign_oov()
+
+        return train_loss_t, eval_loss_t
 
     def predict(self, user, item, feats=None, cold_start="average",
                 inner_id=False):

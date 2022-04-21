@@ -1,1 +1,1 @@
-This folder temporarily stores models and statistics during HPO.
+This folder temporarily stores models and statistics during HPO for LibRecommender models.

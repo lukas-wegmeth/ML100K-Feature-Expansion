@@ -1,0 +1,1 @@
+This folder contains plots created by the plotting utilities.

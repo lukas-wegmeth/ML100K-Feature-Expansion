@@ -1,3 +1,4 @@
+openpyxl
 tensorflow
 librecommender
 scikit-learn
@@ -10,6 +11,7 @@ configspace
 surprise
 lenskit
 myfm
+matplotlib
 pandas
 scipy
 numpy==1.22.2

@@ -4,6 +4,7 @@ from sklearn.model_selection import KFold
 from scipy.stats import kurtosis, skew
 import json
 from reader import read_raw_data
+import copy
 
 
 def process_all_data():
@@ -25,9 +26,11 @@ def split_and_save_data(name, data, info, with_stats):
     folds_it = KFold(n_splits=5, shuffle=True, random_state=7755720)
     idx = 0
 
+    data = data[:500]
+
     for train_index, test_index in folds_it.split(data):
         name_fold = name
-        info_fold = info
+        info_fold = copy.deepcopy(info)
         idx += 1
         train, test = data.loc[train_index], data.loc[test_index]
         if with_stats:
@@ -44,7 +47,6 @@ def split_and_save_data(name, data, info, with_stats):
                 u_stats[user_id] = [u_r.mean(), u_r.median(), u_r.mode().values[0], u_r.min(),
                                     u_r.max(), u_r.std(ddof=0), kurtosis(u_r), skew(u_r), u_r.count()]
 
-            # calculate rating stats by items
             unique_item_ids = train[item_col].unique()
             i_stats = dict()
             for item_id in unique_item_ids:
@@ -52,12 +54,10 @@ def split_and_save_data(name, data, info, with_stats):
                 i_stats[item_id] = [i_r.mean(), i_r.median(), i_r.mode().values[0], i_r.min(),
                                     i_r.max(), i_r.std(ddof=0), kurtosis(i_r), skew(i_r), i_r.count()]
 
-            # calculate global (baseline) stats
             t_r = train[rating_col]
             g_stats = [t_r.mean(), t_r.median(), t_r.mode().values[0], t_r.min(),
                        t_r.max(), t_r.std(ddof=0), kurtosis(t_r), skew(t_r), 0]
 
-            # apply new user-item cols
             for stat_idx, stat_name in enumerate(stat_names):
                 train[f"u{stat_name}Rating"] = train.apply(
                     lambda row: u_stats[row[user_col]][stat_idx]
@@ -70,7 +70,6 @@ def split_and_save_data(name, data, info, with_stats):
                 info_fold["user_cols"].append(f"u{stat_name}Rating")
                 info_fold["dense_cols"].append(f"u{stat_name}Rating")
 
-            # apply new item-user cols
             for stat_idx, stat_name in enumerate(stat_names):
                 train[f"i{stat_name}Rating"] = train.apply(
                     lambda row: i_stats[row[item_col]][stat_idx]
@@ -117,7 +116,6 @@ def preprocess_ml_100k_stripped():
 def preprocess_ml_100k():
     rm_df = read_raw_data()
 
-    # recsys algo info
     dense_cols = ['age']
     sparse_cols = ['unknown', 'action', 'adventure', 'animation', 'childrens', 'comedy', 'crime', 'documentary',
                    'drama', 'fantasy', 'filmnoir', 'horror', 'musical', 'mystery', 'romance', 'scifi', 'thriller',
@@ -127,7 +125,6 @@ def preprocess_ml_100k():
                  'drama', 'fantasy', 'filmnoir', 'horror', 'musical', 'mystery', 'romance', 'scifi', 'thriller',
                  'war', 'western']
 
-    # handle categorical column
     to_encode_categorical = ['occupation', 'gender']
     for col in to_encode_categorical:
         df_dummies = pd.get_dummies(rm_df[col], prefix=col)
@@ -135,10 +132,8 @@ def preprocess_ml_100k():
         user_cols = user_cols + list(df_dummies)
         rm_df = pd.concat([rm_df, df_dummies], axis=1)
 
-    # Handle Dates and make them a timestamp
     rm_df = date_to_timestamp(rm_df, ['releaseDate'], prefix=True)
 
-    # Drop useless columns, drop zip_code as it has multiple string-based codes which could not be encoded otherwise
     to_drop = ['title', 'imdbUrl', 'itemId', 'zip_code', 'videoReleaseDate'] + to_encode_categorical
     rm_df = rm_df.drop(to_drop, axis=1)
 
@@ -150,7 +145,6 @@ def preprocess_ml_100k():
 def preprocess_ml_100k_feature_expansion():
     rm_df = read_raw_data()
 
-    # recsys algo info
     dense_cols = []
     sparse_cols = ['unknown', 'action', 'adventure', 'animation', 'childrens', 'comedy', 'crime', 'documentary',
                    'drama', 'fantasy', 'filmnoir', 'horror', 'musical', 'mystery', 'romance', 'scifi', 'thriller',
@@ -160,30 +154,22 @@ def preprocess_ml_100k_feature_expansion():
                  'drama', 'fantasy', 'filmnoir', 'horror', 'musical', 'mystery', 'romance', 'scifi', 'thriller',
                  'war', 'western']
 
-    # drop users with non-numeric zip
     rm_df = rm_df[rm_df["zip_code"].str.isnumeric()]
-    # convert zip column to int
     rm_df["zip_code"] = rm_df["zip_code"].astype(np.int64)
 
-    # load income data from local excel sheet (https://www.psc.isr.umich.edu/dis/census/Features/tract2zip/)
     income_df = pd.read_excel(io='ml-100k/income.xlsx')
     dense_cols = dense_cols + ["median_income", "mean_income", "population"]
     user_cols = user_cols + ["median_income", "mean_income", "population"]
     income_df.columns = ["zip_code", "median_income", "mean_income", "population"]
-    # transform optional cols
     income_df["median_income"] = income_df["median_income"].apply(lambda inc: round(inc))
     income_df = income_df[income_df["mean_income"] != "."]
     income_df["mean_income"] = income_df["mean_income"].apply(lambda inc: round(inc))
-    # merge with income data
     rm_df = pd.merge(rm_df, income_df, left_on='zip_code', right_on='zip_code')
 
-    # take only first digit from each zip
     rm_df["zip_code"] = rm_df["zip_code"].apply(lambda zipc: int(str(zipc)[0]) if zipc >= 10000 else 0)
 
-    # divide age by 18 to get a few categories for age groups
     rm_df["age"] = rm_df["age"].apply(lambda age: age // 18)
 
-    # handle categorical columns
     to_encode_categorical = ["occupation", "gender", "age", "zip_code"]
 
     for col in to_encode_categorical:
@@ -192,10 +178,8 @@ def preprocess_ml_100k_feature_expansion():
         user_cols = user_cols + list(df_dummies)
         rm_df = pd.concat([rm_df, df_dummies], axis=1)
 
-    # transform movie release dates to unix timestamps
     rm_df = date_to_timestamp(rm_df, ['releaseDate'], prefix=True)
 
-    # drop useless and categorically encoded columns
     to_drop = ['title', 'imdbUrl', 'itemId', 'videoReleaseDate'] + to_encode_categorical
     rm_df = rm_df.drop(to_drop, axis=1)
 

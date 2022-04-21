@@ -8,22 +8,22 @@ def read_preprocessed_data():
     datasets = {}
     for filename in os.listdir(base_folder):
         file_split = filename.split(";")
-        name, set_type, fold = file_split[0], file_split[1], int(file_split[2][:2])
-        if set_type == "split":
-            with open(f'{base_folder}{filename}') as json_file:
-                data_loaded = json.load(json_file)
-        else:
-            data_loaded = pd.read_csv(f'{base_folder}{filename}')
-        if name not in datasets:
-            datasets[name] = {}
-        if fold not in datasets[name]:
-            datasets[name][fold] = {}
-        datasets[name][fold][set_type] = data_loaded
+        if len(file_split) == 3:
+            name, set_type, fold = file_split[0], file_split[1], int(file_split[2][:2])
+            if set_type == "split":
+                with open(f'{base_folder}{filename}') as json_file:
+                    data_loaded = json.load(json_file)
+            else:
+                data_loaded = pd.read_csv(f'{base_folder}{filename}')
+            if name not in datasets:
+                datasets[name] = {}
+            if fold not in datasets[name]:
+                datasets[name][fold] = {}
+            datasets[name][fold][set_type] = data_loaded
     return datasets
 
 
 def read_raw_data():
-    # read data from ml100k download (https://grouplens.org/datasets/movielens/100k/)
     ratings_df = pd.read_csv('ml-100k/u.data', sep='\t', encoding='iso-8859-1',
                              names=['userId', 'itemId', 'rating', 'timestamp'])
 
