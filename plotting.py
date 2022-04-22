@@ -103,7 +103,7 @@ def plot_detailed_summary():
 
     plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=1, wspace=0.05)
 
-    plt.savefig("./plotting/plot_detailed_summary.png", bbox_inches='tight')
+    plt.savefig("./plotting/plot_detailed_summary.pdf", bbox_inches='tight')
     return
 
 
@@ -112,10 +112,55 @@ def plot_feature_importance(forest_importances, sorted_std_agg):
     forest_importances.plot.bar(yerr=sorted_std_agg, ax=ax, color="royalblue")
     ax.set_ylabel("Gini importance in percent")
     fig.tight_layout()
-    plt.savefig("./plotting/plot_feature_importance.png", bbox_inches='tight')
+    plt.savefig("./plotting/plot_feature_importance.pdf", bbox_inches='tight')
     return
 
 
 def plot_rmse_change():
-    plt.savefig("./plotting/plot_feature_importance.png", bbox_inches='tight')
+    results = pd.read_csv("./results/paper_results_final.csv")
+
+    algo_types = ["ML", "AutoML", "RecSysMF", "RecSysModels"]
+    algo_colors = {"ML": "orchid", "AutoML": "coral", "RecSysMF": "dodgerblue", "RecSysModels": "lime",
+                   "Total": "black"}
+    feature_sets = ["basic-no-stats", "basic-with-stats", "stripped-no-stats", "stripped-with-stats",
+                    "feature-expansion-no-stats", "feature-expansion-with-stats"]
+    num_features = [8, 26, 2, 20, 11, 29]
+
+    plt.figure(figsize=(8, 6))
+    plt.xlabel("Number of features")
+    plt.xticks(num_features)
+    plt.ylabel("Root Mean Squared Error (lower is better)")
+    plt.tight_layout()
+
+
+    score_dict = {"ML": [[], []], "AutoML": [[], []], "RecSysMF": [[], []], "RecSysModels": [[], []], "Total": [[], []]}
+    for idx_algo_type, algo_type in enumerate(algo_types):
+        results_by_algo_type = results[results["type"] == algo_type]
+        for idx_feature_set, feature_set in enumerate(feature_sets):
+            results_by_feature_set = results_by_algo_type[results_by_algo_type["feature_set"] == feature_set]
+            if len(results_by_feature_set) > 0:
+                mean_rmse = results_by_feature_set["rmse"].mean()
+                score_dict[algo_type][0].append(num_features[idx_feature_set])
+                score_dict[algo_type][1].append(mean_rmse)
+                if algo_type == "RecSysMF":
+                    [score_dict[algo_type][0].append(num_features[i]) for i in range(1, 6)]
+                    [score_dict[algo_type][1].append(mean_rmse) for i in range(1, 6)]
+    for idx_feature_set, feature_set in enumerate(feature_sets):
+        results_by_feature_set = results[results["feature_set"] == feature_set]
+        mean_rmse = results_by_feature_set["rmse"].mean()
+        score_dict["Total"][0].append(num_features[idx_feature_set])
+        score_dict["Total"][1].append(mean_rmse)
+
+    for key, value in score_dict.items():
+        sorting_mask = np.argsort(np.array(value[0]))
+        plt.plot(np.array(value[0])[sorting_mask], np.array(value[1])[sorting_mask], label=key,
+                 color=algo_colors[key])
+        # plt.axhline(y=np.array(value[1])[sorting_mask][-1], color=algo_colors[key], linewidth=0.3, alpha=1)
+
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.125), ncol=3, fancybox=True)
+
+    for idx_feature_set, feature_set in enumerate(feature_sets):
+        plt.axvline(x=num_features[idx_feature_set], color='k', linewidth=0.3)
+
+    plt.savefig("./plotting/plot_rmse_change.pdf", bbox_inches='tight')
     return
