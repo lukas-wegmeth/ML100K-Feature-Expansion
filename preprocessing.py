@@ -26,8 +26,6 @@ def split_and_save_data(name, data, info, with_stats):
     folds_it = KFold(n_splits=5, shuffle=True, random_state=7755720)
     idx = 0
 
-    data = data[:500]
-
     for train_index, test_index in folds_it.split(data):
         name_fold = name
         info_fold = copy.deepcopy(info)

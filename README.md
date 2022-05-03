@@ -1,4 +1,4 @@
-#The Impact of Feature Quantity on Recommender Systems: A Movielens-100K Case Study
+# The Impact of Feature Quantity on Recommendation Algorithm Performance: A Movielens-100K Case Study
 
 This project contains a modified version of LibRecommender (Original at: https://github.com/massquantity/LibRecommender).
 
